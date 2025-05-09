@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upscale</title>
+    <meta charset="UTF-8"> </head>
+<body>
+<h1>Upload Image for Upscaling</h1>
+
+<form id="uploadForm">
+    <input type="file" name="file" accept="image/*" required><br><br>
+
+    Метод:
+    <select name="method" required>
+        <option value="interpolation">Interpolation (Pillow)</option>
+        <option value="edsr">EDSR (Placeholder)</option>
+    </select><br><br>
+
+    Кратность:
+    <input type="number" name="scale" value="2" min="1" required><br><br>
+
+    <button type="submit">Upscale Image</button>
+</form>
+
+<h2>Results</h2>
+<p id="statusMessage"></p>
+<p>Uploaded Image ID: <span id="imageId" style="font-weight: bold;"></span></p>
+<script>
+    // --- JavaScript код для отправки формы и обработки ответа ---
+
+    // 1. Получаем ссылки на нужные HTML-элементы по их ID
+    const uploadForm = document.getElementById('uploadForm');
+    const statusMessage = document.getElementById('statusMessage');
+    const imageIdSpan = document.getElementById('imageId');
+
+    // 2. Добавляем "слушателя" события отправки формы
+    uploadForm.addEventListener('submit', function(event) {
+        // Предотвращаем стандартную отправку формы, которая привела бы к перезагрузке страницы
+        event.preventDefault();
+
+        // 3. Очищаем предыдущие сообщения и устанавливаем статус "Загрузка..."
+        statusMessage.textContent = 'Uploading...';
+        statusMessage.style.color = 'black'; // Сбросить цвет сообщения об ошибке
+        imageIdSpan.textContent = '';
+
+        // 4. Создаем объект FormData из нашей формы.
+        // FormData автоматически собирает все поля формы (включая файл)
+        // и подготавливает их для отправки в формате multipart/form-data.
+        const formData = new FormData(uploadForm);
+
+        // 5. Отправляем данные на бэкенд с использованием Fetch API
+        // Fetch API - современный стандарт для выполнения HTTP-запросов в браузере.
+        fetch('http://localhost:8080/api/v1/images', {
+            method: 'POST', // Указываем метод POST
+            body: formData // FormData объект становится телом запроса. Fetch автоматически добавит нужный заголовок Content-Type: multipart/form-data
+        })
+        .then(response => {
+            // 6. Обрабатываем ответ от сервера
+            if (!response.ok) { // Проверяем статус ответа (response.ok - это true для статусов 2xx)
+                // Если статус не 2xx, значит, произошла ошибка на сервере.
+                // Пытаемся прочитать тело ответа как текст, чтобы получить сообщение об ошибке.
+                return response.text().then(errorText => {
+                     // Создаем новое исключение с информацией об ошибке
+                     throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+                });
+            }
+            // Если статус 2xx, значит, все успешно.
+            // Читаем тело ответа как текст. Наш бэкенд сейчас возвращает ID как текст.
+            // Если бы бэкенд возвращал JSON, использовали бы response.json()
+            return response.text();
+        })
+        .then(imageId => {
+            // 7. Обрабатываем успешный ответ (получили ID)
+            statusMessage.textContent = 'Upload successful! Processing started...'; // Меняем статус сообщения
+            statusMessage.style.color = 'green'; // Можно сделать успешное сообщение зеленым
+            imageIdSpan.textContent = imageId; // Выводим полученный ID на страницу
+            console.log('Uploaded Image ID:', imageId); // Выводим ID в консоль браузера (можно открыть Инструменты разработчика F12)
+
+            // TODO: В следующем шаге (7.8) мы будем использовать этот imageId
+            // чтобы запросить статус обработки и, после завершения,
+            // получить и отобразить обработанное изображение и метрики.
+
+        })
+        .catch(error => {
+            // 8. Обрабатываем любые ошибки, произошедшие во время запроса или в предыдущих .then()
+            statusMessage.textContent = `Error: ${error.message}`; // Выводим сообщение об ошибке
+            statusMessage.style.color = 'red'; // Делаем сообщение об ошибке красным
+            imageIdSpan.textContent = 'N/A';
+            console.error('Upload error:', error); // Логируем ошибку в консоль браузера
+        });
+    });
+</script>
+
+<style>
+    /* Простейшие стили для наглядности */
+    body { font-family: sans-serif; margin: 20px; }
+    form { margin-bottom: 30px; padding: 20px; border: 1px solid #ccc; border-radius: 5px;}
+    #statusMessage { font-weight: bold; }
+</style>
+</body>
+</html>

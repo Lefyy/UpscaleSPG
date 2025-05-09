@@ -1,6 +1,7 @@
 import sys
 import shutil
 import os
+from PIL import Image
 
 # Ожидаем 4 аргумента:
 # 1: Путь к входному файлу (оригиналу)
@@ -36,25 +37,38 @@ def main():
     print(f"  Method: {processing_method}")
     print(f"  Scale Factor: {scale_factor}")
 
-    # --- Здесь будет основная логика обработки изображения ---
-    # Пока просто скопируем входной файл в выходной, чтобы проверить пути
     try:
-        # Убедимся, что директория для выходного файла существует
-        output_dir = os.path.dirname(output_path)
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+        print(f"Opening image: {input_path}")
+        with Image.open(input_path) as img:
 
-        shutil.copy(input_path, output_path)
-        print(f"Successfully simulated processing. Copied '{input_path}' to '{output_path}'")
+            original_width, original_height = img.size
+            new_width = original_width * scale_factor
+            new_height = original_height * scale_factor
 
-        # В реальном скрипте здесь был бы код для загрузки input_path,
-        # применения модели/интерполяции с учетом method и scale_factor,
-        # и сохранения результата в output_path.
+            print(f"Original size: {original_width}x{original_height}, New size: {new_width}x{new_height}")
 
-        # Если все прошло успешно, выводим путь к результату (опционально, но полезно)
-        # и завершаем с кодом 0
-        print(f"RESULT_PATH:{output_path}") # Пример вывода пути к результату для парсинга в Java
-        sys.exit(0) # Завершаем скрипт с кодом успеха
+            print(f"Resizing image using Pillow resize...")
+
+            resample_filter = Image.BICUBIC # Старая константа, работает в более старых версиях
+            if hasattr(Image, 'Resampling'): # Проверка для Pillow 9+ и выше
+                 resample_filter = Image.Resampling.BICUBIC
+
+
+            img_resized = img.resize((new_width, new_height), resample=resample_filter)
+            print("Resizing complete.")
+
+            output_dir = os.path.dirname(output_path)
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+                print(f"Created output directory: {output_dir}")
+
+            print(f"Saving processed image to: {output_path}")
+            img_resized.save(output_path)
+            print("Saving complete.")
+
+        print(f"Processing successful.")
+        print(f"RESULT_PATH:{output_path}")
+        sys.exit(0)
 
     except FileNotFoundError:
         print(f"Error: Input file not found at '{input_path}'", file=sys.stderr)

@@ -2,18 +2,25 @@ package upscale_project.UpscaleSPG.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import upscale_project.UpscaleSPG.model.Image;
 import upscale_project.UpscaleSPG.repository.ImageRepository;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.List;
 import java.io.BufferedReader;
@@ -146,5 +153,88 @@ public class ImageService {
         }
 
         return savedImage.getId();
+    }
+
+    public ResponseEntity<Resource> getProcessedImageFile(Long imageId) throws FileNotFoundException, RuntimeException {
+        Optional<Image> imageOptional = imageRepository.findById(imageId);
+
+        if (imageOptional.isEmpty()) {
+            throw new FileNotFoundException("Image not found with ID: " + imageId);
+        }
+
+        Image image = imageOptional.get();
+
+        if (!"processed".equals(image.getStatus()) || image.getProcessedFilePath() == null) {
+            String errorMessage = "Image with ID " + imageId + " is not processed yet or processing failed. Current status: " + image.getStatus();
+            throw new RuntimeException(errorMessage);
+        }
+
+        String processedFilePath = image.getProcessedFilePath();
+
+        Path file = Paths.get(processedFilePath);
+
+        if (!Files.exists(file)) {
+            String errorMessage = "Processed image file not found on disk at path: " + processedFilePath;
+            throw new FileNotFoundException(errorMessage);
+        }
+
+        String contentType = null;
+        try {
+            contentType = Files.probeContentType(file);
+
+            if (contentType == null || "application/octet-stream".equals(contentType)) {
+                String fileExtension = "";
+                String fileName = file.getFileName().toString();
+                if (fileName != null && fileName.contains(".")) {
+                    fileExtension = fileName.substring(fileName.lastIndexOf(".") + 1).toLowerCase();
+                    switch (fileExtension) {
+                        case "jpg":
+                        case "jpeg":
+                            contentType = "image/jpeg";
+                            break;
+                        case "png":
+                            contentType = "image/png";
+                            break;
+                        default:
+                            contentType = "application/octet-stream";
+                            break;
+                    }
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("Could not determine file content type for " + processedFilePath + ": " + e.getMessage());
+            contentType = "application/octet-stream";
+        }
+
+        if (contentType == null) {
+            contentType = "application/octet-stream";
+        }
+
+        Resource resource;
+        try {
+            resource = new UrlResource(file.toUri());
+        } catch (Exception e) {
+            System.err.println("Could not create Resource from file " + processedFilePath + ": " + e.getMessage());
+            throw new RuntimeException("Error preparing file for download.", e);
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+
+        headers.setContentType(MediaType.parseMediaType(contentType));
+
+        String downloadFileName = image.getOriginalFileName();
+
+        if (downloadFileName != null && downloadFileName.contains(".")) {
+            int dotIndex = downloadFileName.lastIndexOf(".");
+            downloadFileName = downloadFileName.substring(0, dotIndex) + "_upscaled" + downloadFileName.substring(dotIndex);
+        } else {
+            downloadFileName = (downloadFileName != null ? downloadFileName : "processed_image") + "_upscaled";
+        }
+
+        headers.setContentDispositionFormData("inline", downloadFileName);
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(resource);
     }
 }
