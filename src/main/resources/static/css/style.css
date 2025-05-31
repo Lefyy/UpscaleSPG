@@ -1,0 +1,3 @@
+body { font-family: sans-serif; margin: 20px; }
+form { margin-bottom: 30px; padding: 20px; border: 1px solid #ccc; border-radius: 5px;}
+#statusMessage { font-weight: bold; }

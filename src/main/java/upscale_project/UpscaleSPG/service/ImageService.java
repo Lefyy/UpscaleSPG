@@ -4,18 +4,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import upscale_project.UpscaleSPG.model.Image;
 import upscale_project.UpscaleSPG.repository.ImageRepository;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.List;
-import java.io.BufferedReader;
 
 @Service
 public class ImageService {
@@ -73,87 +72,70 @@ public class ImageService {
 
         Image savedImage = imageRepository.save(newImage);
 
-        String pythonExecutable = "python3";
-        String pythonScriptPath = scriptsPath + "/upscale_image.py";
-
-        String processedUploadDir = this.uploadPath + "/processed";
-        Path processedUploadPath = Paths.get(processedUploadDir);
-        if (!Files.exists(processedUploadPath)) {
-            Files.createDirectories(processedUploadPath);
-        }
-
-        String processedUniqueFileName = savedImage.getId() + "_upscaled" + fileExtension;
-        Path processedFilePath = processedUploadPath.resolve(processedUniqueFileName);
-        String savedProcessedFilePath = processedFilePath.toAbsolutePath().toString();
-
-
-        List<String> command = new ArrayList<>();
-        command.add(pythonExecutable);
-        command.add(pythonScriptPath);
-        command.add(savedOriginalFilePath); // Аргумент 1: путь к оригинальному файлу
-        command.add(savedProcessedFilePath); // Аргумент 2: путь куда сохранить результат
-        command.add(processingMethod); // Аргумент 3: метод обработки
-        command.add(String.valueOf(scaleFactor)); // Аргумент 4: кратность (переводим int в String)
-
-        System.out.println("Executing Python command: " + String.join(" ", command)); // Для отладки
-
-        ProcessBuilder processBuilder = new ProcessBuilder(command);
-
-        int exitCode;
-        Process process = null;
-        try {
-            process = processBuilder.start();
-
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
-
-            StringBuilder output = new StringBuilder();
-            String line;
-
-            while ((line = reader.readLine()) != null) {
-                output.append(line).append("\n");
-            }
-            System.out.println("Python STDOUT:\n" + output.toString());
-
-            StringBuilder errorOutput = new StringBuilder();
-
-            while ((line = errorReader.readLine()) != null) {
-                errorOutput.append(line).append("\n");
-            }
-            System.err.println("Python STDERR:\n" + errorOutput.toString()); // Временно печатаем для отладки
-
-            exitCode = process.waitFor(); // Ждем завершения Python-скрипта
-
-            System.out.println("Python process finished with exit code: " + exitCode); // Временно печатаем для отладки
-
-            if (exitCode == 0) {
-                System.out.println("Image processing successful.");
-                savedImage.setStatus("processed");
-                savedImage.setProcessedFilePath(savedProcessedFilePath);
-
-            } else {
-                System.err.println("Image processing failed with exit code: " + exitCode);
-                savedImage.setStatus("error");
-                imageRepository.save(savedImage);
-                throw new RuntimeException("Image processing failed. Python exit code: " + exitCode + "\nError Output:\n" + errorOutput.toString());
-            }
-
-        } catch (IOException e) {
-            System.err.println("Failed to start Python process: " + e.getMessage());
-            savedImage.setStatus("error");
-            throw new RuntimeException("Failed to start image processing process.", e); // Оборачиваем и перебрасываем
-        } catch (InterruptedException e) {
-            System.err.println("Python process interrupted: " + e.getMessage());
-            process.destroy();
-            savedImage.setStatus("error");
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("Image processing process was interrupted.", e); // Оборачиваем и перебрасываем
-        } finally {
-            imageRepository.save(savedImage);
-        }
+        startPythonProcessing(savedImage.getId(),
+                savedImage.getOriginalFilePath(),
+                savedImage.getOriginalFileName(),
+                processingMethod, scaleFactor);
 
         return savedImage.getId();
     }
+
+    @Async
+    public void startPythonProcessing(Long imageId, String originalFilePathStr, String originalFileName, String method, int scale) {
+        Path originalFilePath = Paths.get(originalFilePathStr);
+        String processedFileName = "processed_" + UUID.randomUUID().toString() + "_" + originalFileName;
+        Path processedFilePath = Paths.get(uploadPath + File.separator + "processed").resolve(processedFileName);
+
+        try {
+            ProcessBuilder pb = new ProcessBuilder(
+                    "python",
+                    Paths.get(scriptsPath, "upscale_image.py").toString(),
+                    originalFilePath.toString(),  // Путь к входному файлу
+                    processedFilePath.toString(), // Путь к выходному файлу
+                    method,                       // Метод
+                    String.valueOf(scale)         // Масштаб
+            );
+
+            pb.redirectErrorStream(true);
+
+            Process process = pb.start();
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                System.out.println("Python output: " + line);
+            }
+
+            int exitCode = process.waitFor();
+            System.out.println("Python script finished with exit code: " + exitCode);
+
+            Image image = imageRepository.findById(imageId).orElseThrow(() -> new RuntimeException("Image not found after processing: " + imageId));
+
+            if (exitCode == 0) {
+                image.setStatus("processed");
+                image.setProcessedFilePath(processedFilePath.toString());
+                System.out.println("Image " + imageId + " status updated to 'processed'.");
+            } else {
+                image.setStatus("error");
+                System.err.println("Image " + imageId + " processing failed with exit code: " + exitCode);
+            }
+            imageRepository.save(image);
+
+        } catch (IOException | InterruptedException e) {
+            System.err.println("Error during Python script execution for image " + imageId + ": " + e.getMessage());
+            imageRepository.findById(imageId).ifPresent(img -> {
+                img.setStatus("error");
+                imageRepository.save(img);
+            });
+        } catch (Exception e) {
+            System.err.println("Unexpected error in async processing for image " + imageId + ": " + e.getMessage());
+            imageRepository.findById(imageId).ifPresent(img -> {
+                img.setStatus("error");
+                imageRepository.save(img);
+            });
+        }
+    }
+
 
     public ResponseEntity<Resource> getProcessedImageFile(Long imageId) throws FileNotFoundException, RuntimeException {
         Optional<Image> imageOptional = imageRepository.findById(imageId);
@@ -231,7 +213,7 @@ public class ImageService {
             downloadFileName = (downloadFileName != null ? downloadFileName : "processed_image") + "_upscaled";
         }
 
-        headers.setContentDispositionFormData("inline", downloadFileName);
+        headers.setContentDisposition(ContentDisposition.inline().filename(downloadFileName).build());
 
         return ResponseEntity.ok()
                 .headers(headers)
