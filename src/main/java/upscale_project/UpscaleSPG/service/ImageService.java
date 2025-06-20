@@ -2,13 +2,14 @@ package upscale_project.UpscaleSPG.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Async; // Это здесь больше не нужно, если только нет других @Async методов
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
@@ -27,6 +28,8 @@ import java.util.List;
 @Service
 public class ImageService {
     private final ImageRepository imageRepository;
+    private final Environment env;
+    private final AsyncProcessorService asyncProcessorService; // <-- Внедряем новый сервис
 
     @Value("${app.upload.path}")
     private String uploadPath;
@@ -34,14 +37,25 @@ public class ImageService {
     @Value("${app.scripts.path}")
     private String scriptsPath;
 
+    // Этот путь теперь используется только в AsyncProcessorService
+    // private String pythonExecutablePath = Paths.get(".venv", "Scripts", "python.exe").toString();
+
     @Autowired
-    public ImageService(ImageRepository imageRepository) {
+    public ImageService(ImageRepository imageRepository, Environment env, AsyncProcessorService asyncProcessorService) {
         this.imageRepository = imageRepository;
+        this.env = env;
+        this.asyncProcessorService = asyncProcessorService; // <-- Инициализируем
+    }
+
+    public String getImageStatus(Long imageId) throws FileNotFoundException {
+        Image image = imageRepository.findById(imageId)
+                .orElseThrow(() -> new FileNotFoundException("Image not found with ID: " + imageId));
+        return image.getStatus();
     }
 
     public Long processImageUpload(MultipartFile file,
-                                     String processingMethod,
-                                     int scaleFactor) throws Exception {
+                                   String processingMethod,
+                                   int scaleFactor) throws Exception {
 
         String uploadDir = this.uploadPath;
         Path uploadPath = Paths.get(uploadDir);
@@ -72,7 +86,8 @@ public class ImageService {
 
         Image savedImage = imageRepository.save(newImage);
 
-        startPythonProcessing(savedImage.getId(),
+        // <-- Вызываем асинхронный метод через новый сервис
+        asyncProcessorService.startPythonProcessing(savedImage.getId(),
                 savedImage.getOriginalFilePath(),
                 savedImage.getOriginalFileName(),
                 processingMethod, scaleFactor);
@@ -80,62 +95,8 @@ public class ImageService {
         return savedImage.getId();
     }
 
-    @Async
-    public void startPythonProcessing(Long imageId, String originalFilePathStr, String originalFileName, String method, int scale) {
-        Path originalFilePath = Paths.get(originalFilePathStr);
-        String processedFileName = "processed_" + UUID.randomUUID().toString() + "_" + originalFileName;
-        Path processedFilePath = Paths.get(uploadPath + File.separator + "processed").resolve(processedFileName);
-
-        try {
-            ProcessBuilder pb = new ProcessBuilder(
-                    "python",
-                    Paths.get(scriptsPath, "upscale_image.py").toString(),
-                    originalFilePath.toString(),  // Путь к входному файлу
-                    processedFilePath.toString(), // Путь к выходному файлу
-                    method,                       // Метод
-                    String.valueOf(scale)         // Масштаб
-            );
-
-            pb.redirectErrorStream(true);
-
-            Process process = pb.start();
-
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String line;
-            while ((line = reader.readLine()) != null) {
-                System.out.println("Python output: " + line);
-            }
-
-            int exitCode = process.waitFor();
-            System.out.println("Python script finished with exit code: " + exitCode);
-
-            Image image = imageRepository.findById(imageId).orElseThrow(() -> new RuntimeException("Image not found after processing: " + imageId));
-
-            if (exitCode == 0) {
-                image.setStatus("processed");
-                image.setProcessedFilePath(processedFilePath.toString());
-                System.out.println("Image " + imageId + " status updated to 'processed'.");
-            } else {
-                image.setStatus("error");
-                System.err.println("Image " + imageId + " processing failed with exit code: " + exitCode);
-            }
-            imageRepository.save(image);
-
-        } catch (IOException | InterruptedException e) {
-            System.err.println("Error during Python script execution for image " + imageId + ": " + e.getMessage());
-            imageRepository.findById(imageId).ifPresent(img -> {
-                img.setStatus("error");
-                imageRepository.save(img);
-            });
-        } catch (Exception e) {
-            System.err.println("Unexpected error in async processing for image " + imageId + ": " + e.getMessage());
-            imageRepository.findById(imageId).ifPresent(img -> {
-                img.setStatus("error");
-                imageRepository.save(img);
-            });
-        }
-    }
-
+    // <-- Метод startPythonProcessing полностью удален из ImageService
+    // Он теперь находится в AsyncProcessorService
 
     public ResponseEntity<Resource> getProcessedImageFile(Long imageId) throws FileNotFoundException, RuntimeException {
         Optional<Image> imageOptional = imageRepository.findById(imageId);

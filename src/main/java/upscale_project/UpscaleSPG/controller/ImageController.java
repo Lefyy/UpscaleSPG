@@ -25,7 +25,7 @@ public class ImageController {
     @PostMapping
     public ResponseEntity<?> uploadImage(
             @RequestParam("file") MultipartFile file,
-            @RequestParam("method") String processingMethod,
+            @RequestParam("model") String processingMethod,
             @RequestParam("scale") int scaleFactor
     ) {
         if (file.isEmpty()) {
@@ -55,6 +55,18 @@ public class ImageController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+        }
+    }
+
+    @GetMapping("/{imageId}/status")
+    public ResponseEntity<String> getImageStatus(@PathVariable Long imageId) {
+        try {
+            String status = imageService.getImageStatus(imageId);
+            return ResponseEntity.ok(status);
+        } catch (FileNotFoundException e) {
+            return new ResponseEntity<>("Image not found: " + e.getMessage(), HttpStatus.NOT_FOUND);
+        } catch (Exception e) {
+            return new ResponseEntity<>("Error retrieving status.", HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 }

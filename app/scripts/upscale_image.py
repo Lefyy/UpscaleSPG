@@ -1,82 +1,180 @@
 import sys
-import shutil
 import os
-from PIL import Image
+import torch
+import cv2
+import numpy as np
 
-# Ожидаем 4 аргумента:
-# 1: Путь к входному файлу (оригиналу)
-# 2: Путь куда сохранить выходной файл (увеличенный)
-# 3: Метод обработки (interpolation или edsr и т.д.)
-# 4: Кратность увеличения (целое число)
 
-# sys.argv - это список аргументов командной строки.
-# sys.argv[0] - это имя самого скрипта (upscale_image.py)
-# sys.argv[1] - первый аргумент
-# sys.argv[2] - второй аргумент и т.д.
+from ESPCN import ESPCN
+from EDSR import EDSR
+from SRGAN import *
 
-def main():
-    # Проверяем, что получено правильное количество аргументов (имя скрипта + 4 аргумента = 5 элементов в sys.argv)
-    if len(sys.argv) != 5:
-        print("Usage: python upscale_image.py <input_path> <output_path> <method> <scale>", file=sys.stderr)
-        sys.exit(1) # Завершаем скрипт с кодом ошибки
+def _load_model(model_name, scale, model_path, device):
+    """
+    Загружает и инициализирует указанную модель, а также загружает ее веса.
+    """
+    model = None
+    if model_name.lower() == 'espcn':
+        model = ESPCN(upscale_factor=scale).to(device)
+    elif model_name.lower() == 'edsr':
+        model = EDSR(upscale_factor=scale).to(device)
+    elif model_name.lower() == 'srgan':
+        model = SRResNet(upscale=scale).to(device)
+    else:
+        raise ValueError(f"Неизвестное имя модели: {model_name}. Поддерживаются 'espcn' и 'edsr'.")
 
-    input_path = sys.argv[1]
-    output_path = sys.argv[2]
-    processing_method = sys.argv[3]
-    scale_factor_str = sys.argv[4]
+    checkpoint = torch.load(model_path, map_location=device)
 
+    if isinstance(checkpoint, dict) and 'state_dict' in checkpoint:
+        model.load_state_dict(checkpoint['state_dict'])
+    elif isinstance(checkpoint, dict):
+        try:
+            model.load_state_dict(checkpoint)
+        except Exception as e:
+            raise Exception(f"Ошибка при загрузке модели: Не удалось загрузить веса из словаря: {e}")
+    else:
+        model.load_state_dict(checkpoint)
+
+    model.eval()
+    return model
+
+def _process_image_interpolation(input_path, output_path, scale, interpolation_method):
+    """
+    Масштабирует изображение с использованием классических методов интерполяции OpenCV.
+    """
+    print(f"Выполняется масштабирование методом интерполяции...", file=sys.stderr)
+    lr_image = cv2.imread(input_path)
+    if lr_image is None:
+        raise FileNotFoundError(f"Не удалось прочитать изображение: {input_path}")
+
+    h, w, _ = lr_image.shape
+    new_w, new_h = w * scale, h * scale
+
+    sr_image = cv2.resize(lr_image, (new_w, new_h), interpolation=interpolation_method)
+
+    cv2.imwrite(output_path, sr_image)
+    method_name = "Bilinear" if interpolation_method == cv2.INTER_LINEAR else "Bicubic"
+    print(f"Изображение успешно увеличено ({method_name}) и сохранено в {output_path}", file=sys.stderr)
+
+def _process_image_espcn(model, input_path, output_path, device):
+    """
+    Обрабатывает изображение с использованием модели ESPCN.
+    """
+    lr_image = cv2.imread(input_path).astype(np.float32) / 255.0
+
+    ycrcb_image = cv2.cvtColor(lr_image, cv2.COLOR_BGR2YCrCb)
+    y_channel, cr_channel, cb_channel = cv2.split(ycrcb_image)
+
+    input_tensor = torch.from_numpy(y_channel).to(device).view(1, 1, y_channel.shape[0], y_channel.shape[1])
+
+    with torch.no_grad():
+        sr_y_tensor = model(input_tensor)
+
+    sr_y = sr_y_tensor.squeeze().cpu().numpy()
+    sr_y = np.clip(sr_y, 0.0, 1.0)
+
+    h_upscaled, w_upscaled = sr_y.shape
+
+    sr_cr = cv2.resize(cr_channel, (w_upscaled, h_upscaled), interpolation=cv2.INTER_CUBIC)
+    sr_cb = cv2.resize(cb_channel, (w_upscaled, h_upscaled), interpolation=cv2.INTER_CUBIC)
+
+    sr_ycrcb = cv2.merge([sr_y, sr_cr, sr_cb])
+    final_output_bgr = cv2.cvtColor(sr_ycrcb, cv2.COLOR_YCrCb2BGR)
+
+    cv2.imwrite(output_path, final_output_bgr * 255.0)
+
+def _process_image_edsr(model, input_path, output_path, device):
+    """
+    Обрабатывает изображение с использованием модели EDSR.
+    """
+    lr_image = cv2.imread(input_path).astype(np.float32)
+
+    rgb_image = cv2.cvtColor(lr_image, cv2.COLOR_BGR2RGB)
+
+    input_tensor = torch.from_numpy(rgb_image.transpose(2, 0, 1)).unsqueeze(0).to(device)
+
+    with torch.no_grad():
+        output_tensor = model(input_tensor)
+
+    final_output_rgb = output_tensor.squeeze(0).permute(1, 2, 0).cpu().numpy()
+    final_output_rgb = np.clip(final_output_rgb, 0.0, 255.0)
+
+    final_output_bgr = cv2.cvtColor(final_output_rgb, cv2.COLOR_RGB2BGR)
+
+    cv2.imwrite(output_path, final_output_bgr)
+    print(f"Изображение успешно увеличено (EDSR) и сохранено в {output_path}", file=sys.stderr)
+
+def _process_image_srgan(model, input_path, output_path, device):
+    """
+    Обрабатывает изображение с использованием модели SRGAN.
+    """
+    lr_image = cv2.imread(input_path).astype(np.float32) / 255.0
+
+    rgb_image = cv2.cvtColor(lr_image, cv2.COLOR_BGR2RGB)
+
+    input_tensor = torch.from_numpy(rgb_image.transpose(2, 0, 1)).unsqueeze(0).to(device)
+
+    with torch.no_grad():
+        output_tensor = model(input_tensor)
+
+    final_output_rgb = output_tensor.squeeze(0).permute(1, 2, 0).cpu().numpy()
+
+    final_output_bgr = cv2.cvtColor(final_output_rgb, cv2.COLOR_RGB2BGR)
+
+    cv2.imwrite(output_path, final_output_bgr * 255.0)
+    print(f"Изображение успешно увеличено (SRGAN) и сохранено в {output_path}", file=sys.stderr)
+
+
+def upscale_image(input_path, output_path, model_path, model_name, scale):
+    """
+    Масштабирует изображение, выбирая метод в зависимости от имени.
+    """
     try:
-        scale_factor = int(scale_factor_str)
-    except ValueError:
-        print(f"Error: Scale factor must be an integer, but got '{scale_factor_str}'", file=sys.stderr)
-        sys.exit(1) # Завершаем с кодом ошибки, если кратность не число
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model_name_lower = model_name.lower()
 
-    print(f"Python script received:")
-    print(f"  Input Path: {input_path}")
-    print(f"  Output Path: {output_path}")
-    print(f"  Method: {processing_method}")
-    print(f"  Scale Factor: {scale_factor}")
+        if model_name_lower == 'bilinear':
+            _process_image_interpolation(input_path, output_path, scale, cv2.INTER_LINEAR)
+        elif model_name_lower == 'bicubic':
+            _process_image_interpolation(input_path, output_path, scale, cv2.INTER_CUBIC)
+        elif model_name_lower in ['espcn', 'edsr', 'srgan']:
+            print(f"Используется устройство: {device}", file=sys.stderr)
+            model = _load_model(model_name_lower, scale, model_path, device)
 
-    try:
-        print(f"Opening image: {input_path}")
-        with Image.open(input_path) as img:
+            if model_name_lower == 'espcn':
+                _process_image_espcn(model, input_path, output_path, device)
+            elif model_name_lower == 'edsr':
+                _process_image_edsr(model, input_path, output_path, device)
+            elif model_name_lower == 'srgan':
+                _process_image_srgan(model, input_path, output_path, device)
+        else:
+            raise ValueError(f"Неизвестное имя модели/метода: {model_name}. "
+                             f"Поддерживаются: espcn, edsr, srgan, bilinear, bicubic.")
 
-            original_width, original_height = img.size
-            new_width = original_width * scale_factor
-            new_height = original_height * scale_factor
-
-            print(f"Original size: {original_width}x{original_height}, New size: {new_width}x{new_height}")
-
-            print(f"Resizing image using Pillow resize...")
-
-            resample_filter = Image.BICUBIC # Старая константа, работает в более старых версиях
-            if hasattr(Image, 'Resampling'): # Проверка для Pillow 9+ и выше
-                 resample_filter = Image.Resampling.BICUBIC
-
-
-            img_resized = img.resize((new_width, new_height), resample=resample_filter)
-            print("Resizing complete.")
-
-            output_dir = os.path.dirname(output_path)
-            if not os.path.exists(output_dir):
-                os.makedirs(output_dir)
-                print(f"Created output directory: {output_dir}")
-
-            print(f"Saving processed image to: {output_path}")
-            img_resized.save(output_path)
-            print("Saving complete.")
-
-        print(f"Processing successful.")
-        print(f"RESULT_PATH:{output_path}")
-        sys.exit(0)
+        return 0 # Успешное завершение
 
     except FileNotFoundError:
-        print(f"Error: Input file not found at '{input_path}'", file=sys.stderr)
-        sys.exit(1)
+        print(f"Ошибка: Файл не найден по пути {input_path} или {model_path}", file=sys.stderr)
+        return 1
+    except ValueError as e:
+        print(f"Ошибка параметров: {e}", file=sys.stderr)
+        return 1
     except Exception as e:
-        print(f"An error occurred during processing simulation: {e}", file=sys.stderr)
-        sys.exit(1)
-
+        print(f"Произошла ошибка во время увеличения изображения: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        return 1
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) != 6:
+        print("Использование: python upscale_image.py <путь_входного_изображения> <путь_выходного_изображения> <путь_весов_модели> <имя_модели> <масштаб>", file=sys.stderr)
+        sys.exit(1)
+
+    input_image_path = sys.argv[1]
+    output_image_path = sys.argv[2]
+    model_weights_path = sys.argv[3]
+    model_name = sys.argv[4]
+    scale = int(sys.argv[5])
+
+    exit_code = upscale_image(input_image_path, output_image_path, model_weights_path, model_name, scale)
+    sys.exit(exit_code)

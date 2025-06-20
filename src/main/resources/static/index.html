@@ -11,13 +11,16 @@
         <input type="file" name="file" accept="image/*" required><br><br>
 
         Метод:
-        <select name="method" required>
-            <option value="interpolation">Interpolation (Pillow)</option>
-            <option value="edsr">EDSR (Placeholder)</option>
+        <select name="model" required>
+            <option value="bilinear">Билинейная интерполяция</option>
+            <option value="bicubic">Бикубическая интерполяция</option>
+            <option value="espcn">ESPCN</option>
+            <option value="edsr">EDSR</option>
+            <option value="srgan">SRGAN</option>
         </select><br><br>
 
         Кратность:
-        <input type="number" name="scale" value="2" min="1" required><br><br>
+        <input type="number" name="scale" value="2" min="2" max="4" required><br><br>
 
         <button type="submit">Upscale Image</button>
     </form>
