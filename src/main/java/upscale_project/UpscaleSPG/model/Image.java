@@ -27,11 +27,9 @@ public class Image {
     private Long upscaledFileSize;
 
 
-    // Конструктор без аргументов (требуется JPA)
     public Image() {
     }
 
-    // Обновленный конструктор
     public Image(String originalFileName, String originalFilePath, String status, String modelUsed, int scaleFactor) {
         this.originalFileName = originalFileName;
         this.originalFilePath = originalFilePath;
@@ -40,8 +38,6 @@ public class Image {
         this.modelUsed = modelUsed;
         this.scaleFactor = scaleFactor;
     }
-
-    // --- Геттеры и Сеттеры ---
 
     public Long getId() {
         return id;
@@ -123,7 +119,6 @@ public class Image {
         this.scaleFactor = scaleFactor;
     }
 
-    // Новые геттеры и сеттеры для метаданных
     public String getOriginalResolution() {
         return originalResolution;
     }

@@ -22,7 +22,6 @@ public class ImageMetadataResponse {
         this.originalFileName = originalFileName;
     }
 
-    // Геттеры (сеттеры не нужны, так как мы будем создавать объект один раз)
     public String getStatus() {
         return status;
     }
