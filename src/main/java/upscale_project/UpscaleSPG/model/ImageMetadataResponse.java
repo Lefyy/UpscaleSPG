@@ -2,15 +2,14 @@ package upscale_project.UpscaleSPG.model;
 
 public class ImageMetadataResponse {
     private String status;
-    private String originalResolution; // e.g., "1920x1080"
-    private String upscaledResolution; // e.g., "3840x2160"
-    private long originalFileSize;     // in bytes
-    private long upscaledFileSize;     // in bytes
-    private String model;              // e.g., "SRGAN"
-    private int scale;                 // e.g., 2
-    private String originalFileName;   // original filename for download
+    private String originalResolution;
+    private String upscaledResolution;
+    private long originalFileSize;
+    private long upscaledFileSize;
+    private String model;
+    private int scale;
+    private String originalFileName;
 
-    // Конструктор
     public ImageMetadataResponse(String status, String originalResolution, String upscaledResolution,
                                  long originalFileSize, long upscaledFileSize, String model, int scale, String originalFileName) {
         this.status = status;

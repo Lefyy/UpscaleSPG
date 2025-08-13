@@ -1,21 +1,17 @@
 package upscale_project.UpscaleSPG.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import upscale_project.UpscaleSPG.model.ImageMetadataResponse;
-import upscale_project.UpscaleSPG.repository.ImageRepository;
 import upscale_project.UpscaleSPG.service.ImageService;
 
 import java.io.FileNotFoundException;
 
 @RestController
 @RequestMapping("/api/v1/images")
-@CrossOrigin(origins = "http://localhost:8080")
 public class ImageController {
     private final ImageService imageService;
 
@@ -44,12 +40,11 @@ public class ImageController {
         }
     }
 
-    // Изменения здесь: Возвращаем ImageMetadataResponse, а не String
     @GetMapping("/{id}/status")
     public ResponseEntity<?> getImageStatus(@PathVariable("id") Long id) {
         try {
             ImageMetadataResponse response = imageService.getImageStatus(id);
-            return ResponseEntity.ok(response); // Spring автоматически преобразует DTO в JSON
+            return ResponseEntity.ok(response);
         } catch (FileNotFoundException e) {
             return new ResponseEntity<>(e.getMessage(), HttpStatus.NOT_FOUND);
         } catch (Exception e) {

@@ -21,7 +21,7 @@ def _load_model(model_name, scale, model_path, device):
     elif model_name.lower() == 'srgan':
         model = SRResNet(upscale=scale).to(device)
     else:
-        raise ValueError(f"Неизвестное имя модели: {model_name}. Поддерживаются 'espcn' и 'edsr'.")
+        raise ValueError(f"Неизвестное имя модели: {model_name}.")
 
     checkpoint = torch.load(model_path, map_location=device)
 
