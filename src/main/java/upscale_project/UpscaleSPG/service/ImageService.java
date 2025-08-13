@@ -14,8 +14,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import upscale_project.UpscaleSPG.model.Image;
+import upscale_project.UpscaleSPG.model.ImageMetadataResponse;
 import upscale_project.UpscaleSPG.repository.ImageRepository;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -47,16 +50,24 @@ public class ImageService {
         this.asyncProcessorService = asyncProcessorService; // <-- Инициализируем
     }
 
-    public String getImageStatus(Long imageId) throws FileNotFoundException {
+    public ImageMetadataResponse getImageStatus(Long imageId) throws FileNotFoundException {
         Image image = imageRepository.findById(imageId)
                 .orElseThrow(() -> new FileNotFoundException("Image not found with ID: " + imageId));
-        return image.getStatus();
+
+        // Создаем и возвращаем DTO
+        return new ImageMetadataResponse(
+                image.getStatus(),
+                image.getOriginalResolution(),
+                image.getUpscaledResolution(),
+                image.getOriginalFileSize() != null ? image.getOriginalFileSize() : 0, // Учитываем null
+                image.getUpscaledFileSize() != null ? image.getUpscaledFileSize() : 0,   // Учитываем null
+                image.getModelUsed(),
+                image.getScaleFactor(),
+                image.getOriginalFileName()
+        );
     }
 
-    public Long processImageUpload(MultipartFile file,
-                                   String processingMethod,
-                                   int scaleFactor) throws Exception {
-
+    public Long processImageUpload(MultipartFile file, String model, int scale) throws Exception {
         String uploadDir = this.uploadPath;
         Path uploadPath = Paths.get(uploadDir);
 
@@ -76,27 +87,71 @@ public class ImageService {
 
         String savedOriginalFilePath = filePath.toAbsolutePath().toString();
 
+        // --- Получаем метаданные исходного изображения ---
+        String originalResolution = "N/A";
+        long originalFileSize = 0;
+        try {
+            originalFileSize = Files.size(filePath);
+            BufferedImage bimg = ImageIO.read(filePath.toFile());
+            if (bimg != null) {
+                originalResolution = bimg.getWidth() + "x" + bimg.getHeight();
+            }
+        } catch (IOException e) {
+            System.err.println("Could not get original image metadata for " + originalFilename + ": " + e.getMessage());
+        }
+        // --- Конец получения метаданных исходного изображения ---
+
         Image newImage = new Image(
                 originalFilename,
                 savedOriginalFilePath,
                 "uploaded",
-                processingMethod,
-                scaleFactor
+                model,
+                scale
         );
+        newImage.setOriginalResolution(originalResolution);
+        newImage.setOriginalFileSize(originalFileSize);
 
         Image savedImage = imageRepository.save(newImage);
 
-        // <-- Вызываем асинхронный метод через новый сервис
         asyncProcessorService.startPythonProcessing(savedImage.getId(),
                 savedImage.getOriginalFilePath(),
                 savedImage.getOriginalFileName(),
-                processingMethod, scaleFactor);
+                model, scale);
 
         return savedImage.getId();
     }
 
-    // <-- Метод startPythonProcessing полностью удален из ImageService
-    // Он теперь находится в AsyncProcessorService
+    public void updateImageProcessingResult(Long imageId, String processedFilePath, String status) throws FileNotFoundException {
+        Image image = imageRepository.findById(imageId)
+                .orElseThrow(() -> new FileNotFoundException("Image not found with ID: " + imageId));
+
+        image.setProcessedFilePath(processedFilePath);
+        image.setStatus(status);
+        image.setProcessEndTime(java.time.LocalDateTime.now());
+
+        // --- Получаем метаданные обработанного изображения ---
+        String upscaledResolution = "N/A";
+        long upscaledFileSize = 0;
+        if (processedFilePath != null) {
+            Path processedFile = Paths.get(processedFilePath);
+            try {
+                if (Files.exists(processedFile)) {
+                    upscaledFileSize = Files.size(processedFile);
+                    BufferedImage bimg = ImageIO.read(processedFile.toFile());
+                    if (bimg != null) {
+                        upscaledResolution = bimg.getWidth() + "x" + bimg.getHeight();
+                    }
+                }
+            } catch (IOException e) {
+                System.err.println("Could not get upscaled image metadata for " + processedFilePath + ": " + e.getMessage());
+            }
+        }
+        image.setUpscaledResolution(upscaledResolution);
+        image.setUpscaledFileSize(upscaledFileSize);
+        // --- Конец получения метаданных обработанного изображения ---
+
+        imageRepository.save(image);
+    }
 
     public ResponseEntity<Resource> getProcessedImageFile(Long imageId) throws FileNotFoundException, RuntimeException {
         Optional<Image> imageOptional = imageRepository.findById(imageId);

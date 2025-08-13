@@ -1,3 +1,263 @@
-body { font-family: sans-serif; margin: 20px; }
-form { margin-bottom: 30px; padding: 20px; border: 1px solid #ccc; border-radius: 5px;}
-#statusMessage { font-weight: bold; }
+/* Общие стили */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f0f2f5;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start; /* Изменено на flex-start, чтобы контент начинался сверху */
+    min-height: 100vh;
+    color: #333;
+    font-size: 16px;
+    line-height: 1.6;
+}
+
+.container {
+    width: 100%;
+    max-width: 800px;
+    padding: 30px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 30px; /* Промежуток между карточками */
+    align-items: center; /* Центрируем содержимое по горизонтали */
+}
+
+h1 {
+    color: #2c3e50;
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: 2.5em;
+    font-weight: 600;
+}
+
+/* Стили для карточек */
+.card {
+    background-color: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+    padding: 30px;
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 20px; /* Отступ снизу для каждой карточки */
+}
+
+.form-card {
+    max-width: 500px; /* Ширина для формы */
+}
+
+.status-card {
+    min-height: 200px; /* Минимальная высота для карточки статуса/результата */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Стили для формы */
+form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+label {
+    font-weight: 600;
+    color: #555;
+    font-size: 0.95em;
+}
+
+input[type="number"],
+select {
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 1em;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+input[type="number"]:focus,
+select:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
+    outline: none;
+}
+
+/* Кастомизация кнопки выбора файла */
+input[type="file"] {
+    display: none; /* Скрываем стандартный инпут */
+}
+
+.file-upload-label {
+    background-color: #e9ecef;
+    color: #555;
+    padding: 12px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: center;
+    transition: background-color 0.3s ease, color 0.3s ease;
+    display: block; /* Занимает всю доступную ширину */
+    border: 1px dashed #ced4da;
+}
+
+.file-upload-label:hover {
+    background-color: #d8dee2;
+    color: #333;
+}
+
+#file-name {
+    display: inline-block;
+    max-width: calc(100% - 20px); /* Чтобы текст не выходил за границы */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+
+/* Стили для кнопок */
+.btn {
+    padding: 12px 25px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1.1em;
+    font-weight: 600;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.btn-primary {
+    background-color: #007bff;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #0056b3;
+    box-shadow: 0 4px 10px rgba(0, 123, 255, 0.3);
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+    text-decoration: none; /* Для ссылки-кнопки */
+    display: inline-block;
+    margin-top: 20px;
+}
+
+.btn-secondary:hover {
+    background-color: #545b62;
+    box-shadow: 0 4px 10px rgba(108, 117, 125, 0.3);
+}
+
+/* Стили для статуса обработки */
+.status-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    padding: 20px;
+}
+
+.status-text {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #34495e;
+}
+
+/* Спиннер загрузки */
+.spinner {
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #3498db;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Стили для результатов изображения */
+.image-results-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+    width: 100%;
+}
+
+.image-results-container h3 {
+    color: #2c3e50;
+    margin-bottom: 10px;
+    font-size: 1.8em;
+}
+
+#processed-image {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    margin-bottom: 15px;
+}
+
+.image-info {
+    text-align: left;
+    width: 100%;
+    max-width: 400px; /* Ограничиваем ширину информации */
+    line-height: 1.8;
+}
+
+.image-info p {
+    margin: 5px 0;
+    font-size: 0.95em;
+}
+
+.image-info span {
+    font-weight: bold;
+    color: #007bff;
+}
+
+/* Медиа-запросы для адаптивности */
+@media (max-width: 768px) {
+    .container {
+        padding: 20px;
+        gap: 20px;
+    }
+    h1 {
+        font-size: 2em;
+    }
+    .card {
+        padding: 20px;
+    }
+}
+
+@media (max-width: 480px) {
+    h1 {
+        font-size: 1.8em;
+    }
+    .btn {
+        padding: 10px 20px;
+        font-size: 1em;
+    }
+    .status-text {
+        font-size: 1em;
+    }
+}

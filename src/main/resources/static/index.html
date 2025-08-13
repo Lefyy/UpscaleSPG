@@ -1,36 +1,68 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <title>Upscale</title>
-    <meta charset="UTF-8"> </head>
+    <title>Upscale Image</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="css/style.css">
+</head>
 <body>
-    <h1>Upload Image for Upscaling</h1>
+<div class="container">
+    <h1>Увеличьте разрешение вашего изображения</h1>
 
-    <form id="uploadForm">
-        <input type="file" name="file" accept="image/*" required><br><br>
+    <div class="card form-card">
+        <form id="uploadForm">
+            <div class="form-group">
+                <label for="file-upload" class="file-upload-label">
+                    <span id="file-name">Выберите файл...</span>
+                    <input type="file" id="file-upload" name="file" accept="image/*" required>
+                </label>
+            </div>
 
-        Метод:
-        <select name="model" required>
-            <option value="bilinear">Билинейная интерполяция</option>
-            <option value="bicubic">Бикубическая интерполяция</option>
-            <option value="espcn">ESPCN</option>
-            <option value="edsr">EDSR</option>
-            <option value="srgan">SRGAN</option>
-        </select><br><br>
+            <div class="form-group">
+                <label for="model-select">Метод:</label>
+                <select id="model-select" name="model" required>
+                    <option value="bilinear">Билинейная интерполяция</option>
+                    <option value="bicubic">Бикубическая интерполяция</option>
+                    <option value="espcn">ESPCN</option>
+                    <option value="edsr">EDSR</option>
+                    <option value="srgan">SRGAN</option>
+                </select>
+            </div>
 
-        Кратность:
-        <input type="number" name="scale" value="2" min="2" max="4" required><br><br>
+            <div class="form-group">
+                <label for="scale-input">Кратность:</label>
+                <input type="number" id="scale-input" name="scale" value="2" min="2" max="4" required>
+            </div>
 
-        <button type="submit">Upscale Image</button>
-    </form>
+            <button type="submit" class="btn btn-primary">Увеличить разрешение</button>
+        </form>
+    </div>
 
-    <h2>Results</h2>
-    <p id="statusMessage"></p>
-    <p>Uploaded Image ID: <span id="imageId" style="font-weight: bold;"></span></p>
+    <div id="processing-card" class="card status-card hidden">
+        <div class="status-content">
+            <p id="status-message-text" class="status-text"></p>
+            <div class="spinner hidden"></div>
+        </div>
+        <div id="image-results-container" class="image-results-container hidden">
+            <h3>Обработанное изображение</h3>
+            <img id="processed-image" src="" alt="Processed Image">
+            <div class="image-info">
+                <p>Исходное разрешение: <span id="original-resolution"></span></p>
+                <p>Новое разрешение: <span id="upscaled-resolution"></span></p>
+                <p>Исходный размер файла: <span id="original-file-size"></span></p>
+                <p>Новый размер файла: <span id="upscaled-file-size"></span></p>
+                <p>Модель: <span id="processed-model"></span></p>
+                <p>Кратность: <span id="processed-scale"></span></p>
+            </div>
+            <a id="download-link" href="#" class="btn btn-secondary" download>Скачать</a>
+        </div>
+    </div>
+</div>
 
-    <div id="imageResults" style="margin-top: 20px; display: flex; gap: 20px; flex-wrap: wrap;"></div>
-
-    <script src="./js/index_script.js"></script>
+<script src="./js/api.js"></script>
+<script src="./js/ui.js"></script>
+<script src="./js/utils.js"></script>
+<script src="./js/main.js"></script>
 </body>
 </html>
