@@ -39,6 +39,17 @@ public class Image {
         this.scaleFactor = scaleFactor;
     }
 
+    public Image(String originalFileName, String originalFilePath, String status, String modelUsed, int scaleFactor, String originalResolution, Long originalFileSize) {
+        this.originalFileName = originalFileName;
+        this.originalFilePath = originalFilePath;
+        this.status = status;
+        this.uploadTime = LocalDateTime.now();
+        this.modelUsed = modelUsed;
+        this.scaleFactor = scaleFactor;
+        this.originalResolution = originalResolution;
+        this.originalFileSize = originalFileSize;
+    }
+
     public Long getId() {
         return id;
     }
