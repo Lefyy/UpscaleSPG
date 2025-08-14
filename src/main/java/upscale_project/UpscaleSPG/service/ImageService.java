@@ -2,7 +2,6 @@ package upscale_project.UpscaleSPG.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.env.Environment;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.ContentDisposition;
@@ -10,7 +9,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import upscale_project.UpscaleSPG.model.Image;
 import upscale_project.UpscaleSPG.model.ImageMetadataResponse;
@@ -22,15 +20,12 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.List;
 
 @Service
 public class ImageService {
     private final ImageRepository imageRepository;
-    private final Environment env;
     private final AsyncProcessorService asyncProcessorService;
 
     @Value("${app.upload.path}")
@@ -40,9 +35,8 @@ public class ImageService {
     private String scriptsPath;
 
     @Autowired
-    public ImageService(ImageRepository imageRepository, Environment env, AsyncProcessorService asyncProcessorService) {
+    public ImageService(ImageRepository imageRepository, AsyncProcessorService asyncProcessorService) {
         this.imageRepository = imageRepository;
-        this.env = env;
         this.asyncProcessorService = asyncProcessorService;
     }
 
