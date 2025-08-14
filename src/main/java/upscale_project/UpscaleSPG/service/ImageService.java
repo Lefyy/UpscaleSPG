@@ -113,7 +113,7 @@ public class ImageService {
 
         Image savedImage = imageRepository.save(newImage);
 
-        asyncProcessorService.startPythonProcessing(savedImage.getId(),
+        asyncProcessorService.startUpscalingProcess(savedImage.getId(),
                 savedImage.getOriginalFilePath(),
                 savedImage.getOriginalFileName(),
                 model, scale);
