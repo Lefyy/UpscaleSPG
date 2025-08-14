@@ -30,15 +30,6 @@ public class Image {
     public Image() {
     }
 
-    public Image(String originalFileName, String originalFilePath, String status, String modelUsed, int scaleFactor) {
-        this.originalFileName = originalFileName;
-        this.originalFilePath = originalFilePath;
-        this.status = status;
-        this.uploadTime = LocalDateTime.now();
-        this.modelUsed = modelUsed;
-        this.scaleFactor = scaleFactor;
-    }
-
     public Image(String originalFileName, String originalFilePath, String status, String modelUsed, int scaleFactor, String originalResolution, Long originalFileSize) {
         this.originalFileName = originalFileName;
         this.originalFilePath = originalFilePath;
