@@ -1,5 +1,7 @@
 package upscale_project.UpscaleSPG.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
@@ -10,6 +12,11 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+
+import upscale_project.UpscaleSPG.exception.ImageNotFoundException;
+import upscale_project.UpscaleSPG.exception.ImageNotProcessedException;
+import upscale_project.UpscaleSPG.exception.ImageProcessingException;
+import upscale_project.UpscaleSPG.exception.InvalidImageException;
 import upscale_project.UpscaleSPG.model.Image;
 import upscale_project.UpscaleSPG.model.ImageMetadataResponse;
 import upscale_project.UpscaleSPG.repository.ImageRepository;
@@ -21,13 +28,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
-import java.util.Optional;
 import java.util.UUID;
 
 @Service
 public class ImageService {
     private final ImageRepository imageRepository;
     private final AsyncProcessorService asyncProcessorService;
+    private static final Logger logger = LoggerFactory.getLogger(ImageService.class);
 
     @Value("${app.upload.path}")
     private String uploadPath;
@@ -41,30 +48,40 @@ public class ImageService {
         this.asyncProcessorService = asyncProcessorService;
     }
 
-    public Long processImageUpload(MultipartFile file, String model, int scale) throws Exception {
-        String originalFilename = file.getOriginalFilename();
-        String savedOriginalFilePath = getSavedOriginalFilePath(file);
-        long originalFileSize = Files.size(Paths.get(savedOriginalFilePath));
-        String originalResolution = getResolution(Paths.get(savedOriginalFilePath));
+    public Long processImageUpload(MultipartFile file, String model, int scale) {
+        try {
+            String originalFilename = file.getOriginalFilename();
 
-        Image newImage = new Image(
-                originalFilename,
-                savedOriginalFilePath,
-                "uploaded",
-                model,
-                scale,
-                originalResolution,
-                originalFileSize
-        );
+            if (file.isEmpty() || originalFilename == null || originalFilename.isBlank()) {
+                throw new InvalidImageException("Uploaded file is empty or has no name.");
+            }
 
-        Image savedImage = imageRepository.save(newImage);
+            String savedOriginalFilePath = getSavedOriginalFilePath(file);
+            long originalFileSize = Files.size(Paths.get(savedOriginalFilePath));
+            String originalResolution = getResolution(Paths.get(savedOriginalFilePath));
 
-        asyncProcessorService.startUpscalingProcess(savedImage.getId(),
-                savedImage.getOriginalFilePath(),
-                savedImage.getOriginalFileName(),
-                model, scale);
+            Image newImage = new Image(
+                    originalFilename,
+                    savedOriginalFilePath,
+                    "uploaded",
+                    model,
+                    scale,
+                    originalResolution,
+                    originalFileSize
+            );
 
-        return savedImage.getId();
+            Image savedImage = imageRepository.save(newImage);
+
+            asyncProcessorService.startUpscalingProcess(savedImage.getId(),
+                    savedImage.getOriginalFilePath(),
+                    savedImage.getOriginalFileName(),
+                    model, scale);
+
+            return savedImage.getId();
+        } catch (IOException e) {
+            logger.error("Failed to process image upload: {}", e.getMessage());
+            throw new ImageProcessingException("Failed to save or read uploaded image.", e);
+        }
     }
 
     private String getSavedOriginalFilePath(MultipartFile file) throws IOException {
@@ -93,35 +110,42 @@ public class ImageService {
         return fileExtension;
     }
 
-    public void updateImageProcessingResult(Long imageId, String processedFilePath, String status) throws Exception {
-        Image image = imageRepository.findById(imageId)
-                .orElseThrow(() -> new FileNotFoundException("Image not found with ID: " + imageId));
-
+    public void updateImageProcessingResult(Long imageId, String processedFilePath, String status) {
+        Image image = getImageById(imageId);
         image.setProcessedFilePath(processedFilePath);
         image.setStatus(status);
         image.setProcessEndTime(LocalDateTime.now());
-        image.setUpscaledResolution(getResolution(Paths.get(processedFilePath)));
-        image.setUpscaledFileSize(Files.size(Paths.get(processedFilePath)));
+
+        if (processedFilePath != null) {
+            try {
+                Path filePath = Paths.get(processedFilePath);
+                image.setUpscaledResolution(getResolution(filePath));
+                image.setUpscaledFileSize(Files.size(filePath));
+            } catch (IOException e) {
+                logger.error("Could not get metadata for processed file {}: {}", processedFilePath, e.getMessage());
+                throw new ImageProcessingException("Could not get metadata for processed file.", e);
+            }
+        }
 
         imageRepository.save(image);
     }
 
     private String getResolution(Path filePath) {
-        String resolution = "N/A";
         try {
             BufferedImage bimg = ImageIO.read(filePath.toFile());
             if (bimg != null) {
-                resolution = bimg.getWidth() + "x" + bimg.getHeight();
+                return bimg.getWidth() + "x" + bimg.getHeight();
+            } else {
+                throw new InvalidImageException("File is not a valid image: " + filePath.getFileName());
             }
         } catch (IOException e) {
-            System.err.println("Could not get image metadata for " + filePath.getFileName() + ": " + e.getMessage());
+            logger.error("Could not read image metadata for {}: {}", filePath.getFileName(), e.getMessage());
+            throw new InvalidImageException("Could not read image metadata for " + filePath.getFileName(), e);
         }
-        return resolution;
     }
 
-    public ImageMetadataResponse getImageStatus(Long imageId) throws FileNotFoundException {
-        Image image = imageRepository.findById(imageId)
-                .orElseThrow(() -> new FileNotFoundException("Image not found with ID: " + imageId));
+    public ImageMetadataResponse getImageStatus(Long imageId) {
+        Image image = getImageById(imageId);
 
         return new ImageMetadataResponse(
             image.getStatus(),
@@ -135,69 +159,38 @@ public class ImageService {
         );
     }
 
-    public ResponseEntity<Resource> getProcessedImageFile(Long imageId) throws FileNotFoundException, RuntimeException {
+    public ResponseEntity<Resource> getProcessedImageFile(Long imageId) {
         Image image = getImageById(imageId);
 
         if (!"processed".equals(image.getStatus()) || image.getProcessedFilePath() == null) {
-            String errorMessage = "Image with ID " + imageId + " is not processed yet or processing failed. Current status: " + image.getStatus();
-            throw new RuntimeException(errorMessage);
+            throw new ImageNotProcessedException("Image with ID " + imageId + " is not processed yet. Current status: " + image.getStatus());
         }
 
-        String processedFilePath = image.getProcessedFilePath();
-        Path file = Paths.get(processedFilePath);
-
-        if (!Files.exists(file)) {
-            String errorMessage = "Processed image file not found on disk at path: " + processedFilePath;
-            throw new FileNotFoundException(errorMessage);
-        }
-
-        String contentType = getContentType(file);
-        Resource resource = getResource(file);
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.parseMediaType(contentType));
-        String downloadFileName = getDownloadFilename(image.getOriginalFileName());
-        headers.setContentDisposition(ContentDisposition.inline().filename(downloadFileName).build());
-
-        return ResponseEntity.ok()
-                .headers(headers)
-                .body(resource);
-    }
-
-    private Image getImageById(Long imageId) throws FileNotFoundException {
-        Optional<Image> imageOptional = imageRepository.findById(imageId);
-
-        if (imageOptional.isEmpty()) {
-            throw new FileNotFoundException("Image not found with ID: " + imageId);
-        }
-
-        return imageOptional.get();
-    }
-
-    private String getContentType(Path file) {
-        String contentType = null;
         try {
-            contentType = Files.probeContentType(file);
+            Path filePath = Paths.get(image.getProcessedFilePath());
+            if (!Files.exists(filePath)) {
+                logger.error("File not found on disk for image ID {}, path: {}", imageId, filePath);
+                throw new ImageProcessingException("Processed image file is missing on the server.");
+            }
+
+            Resource resource = new UrlResource(filePath.toUri());
+            String contentType = Files.probeContentType(filePath);
+            if (contentType == null) {
+                contentType = "application/octet-stream";
+            }
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType(contentType));
+            String downloadFileName = getDownloadFilename(image.getOriginalFileName());
+            headers.setContentDisposition(ContentDisposition.inline().filename(downloadFileName).build());
+
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(resource);
         } catch (IOException e) {
-            System.err.println("Could not determine file content type for " + file.toString() + ": " + e.getMessage());
-            contentType = "application/octet-stream";
+            logger.error("Error preparing file for download for image ID {}: {}", imageId, e.getMessage());
+            throw new ImageProcessingException("Error reading processed file from disk.", e);
         }
-
-        if (contentType == null) {
-            contentType = "application/octet-stream";
-        }
-
-        return contentType;
-    }
-
-    private Resource getResource(Path file) throws RuntimeException {
-        Resource resource;
-        try {
-            resource = new UrlResource(file.toUri());
-        } catch (Exception e) {
-            System.err.println("Could not create Resource from file " + file.toString() + ": " + e.getMessage());
-            throw new RuntimeException("Error preparing file for download.", e);
-        }
-        return resource;
     }
 
     private String getDownloadFilename(String originalFilename) {
@@ -210,5 +203,10 @@ public class ImageService {
         }
 
         return downloadFileName;
+    }
+
+    private Image getImageById(Long imageId) {
+        return imageRepository.findById(imageId)
+            .orElseThrow(() -> new ImageNotFoundException("Image not found with ID: " + imageId));
     }
 }
