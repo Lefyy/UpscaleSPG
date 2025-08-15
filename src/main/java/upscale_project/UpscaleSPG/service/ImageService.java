@@ -34,9 +34,11 @@ import java.util.UUID;
 
 @Service
 public class ImageService {
+    
+    private static final Logger logger = LoggerFactory.getLogger(ImageService.class);
+
     private final ImageRepository imageRepository;
     private final AsyncProcessorService asyncProcessorService;
-    private static final Logger logger = LoggerFactory.getLogger(ImageService.class);
 
     @Value("${app.upload.path}")
     private String uploadPath;
