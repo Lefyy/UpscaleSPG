@@ -19,6 +19,8 @@ import upscale_project.UpscaleSPG.exception.ImageProcessingException;
 import upscale_project.UpscaleSPG.exception.InvalidImageException;
 import upscale_project.UpscaleSPG.model.Image;
 import upscale_project.UpscaleSPG.model.ImageMetadataResponse;
+import upscale_project.UpscaleSPG.model.ImageStatus;
+import upscale_project.UpscaleSPG.model.UpscalingMethod;
 import upscale_project.UpscaleSPG.repository.ImageRepository;
 
 import javax.imageio.ImageIO;
@@ -48,7 +50,7 @@ public class ImageService {
         this.asyncProcessorService = asyncProcessorService;
     }
 
-    public Long processImageUpload(MultipartFile file, String model, int scale) {
+    public Long processImageUpload(MultipartFile file, UpscalingMethod model, int scale) {
         try {
             String originalFilename = file.getOriginalFilename();
 
@@ -63,7 +65,7 @@ public class ImageService {
             Image newImage = new Image(
                     originalFilename,
                     savedOriginalFilePath,
-                    "uploaded",
+                    ImageStatus.UPLOADED,
                     model,
                     scale,
                     originalResolution,
@@ -110,7 +112,7 @@ public class ImageService {
         return fileExtension;
     }
 
-    public void updateImageProcessingResult(Long imageId, String processedFilePath, String status) {
+    public void updateImageProcessingResult(Long imageId, String processedFilePath, ImageStatus status) {
         Image image = getImageById(imageId);
         image.setProcessedFilePath(processedFilePath);
         image.setStatus(status);
@@ -162,7 +164,7 @@ public class ImageService {
     public ResponseEntity<Resource> getProcessedImageFile(Long imageId) {
         Image image = getImageById(imageId);
 
-        if (!"processed".equals(image.getStatus()) || image.getProcessedFilePath() == null) {
+        if (!ImageStatus.PROCESSED.equals(image.getStatus()) || image.getProcessedFilePath() == null) {
             throw new ImageNotProcessedException("Image with ID " + imageId + " is not processed yet. Current status: " + image.getStatus());
         }
 

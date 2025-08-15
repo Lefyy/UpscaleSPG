@@ -8,6 +8,8 @@ import org.springframework.core.env.Environment;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import upscale_project.UpscaleSPG.model.Image;
+import upscale_project.UpscaleSPG.model.ImageStatus;
+import upscale_project.UpscaleSPG.model.UpscalingMethod;
 import upscale_project.UpscaleSPG.repository.ImageRepository;
 
 import java.io.BufferedReader;
@@ -42,7 +44,7 @@ public class AsyncProcessorService {
     }
 
     @Async
-    public void startUpscalingProcess(Long imageId, String originalFilePathStr, String originalFileName, String model, int scale) {
+    public void startUpscalingProcess(Long imageId, String originalFilePathStr, String originalFileName, UpscalingMethod model, int scale) {
         String modelWeightsPath;
         Path originalFilePath = Paths.get(originalFilePathStr);
         Path processedFilePath;
@@ -50,16 +52,16 @@ public class AsyncProcessorService {
             modelWeightsPath = getModelWeightsPath(imageId, model, scale);
             processedFilePath = getProcessedFilePath(imageId, originalFileName, modelWeightsPath, scale);
             doUpscaleProcess(imageId, originalFilePath, processedFilePath, modelWeightsPath, modelWeightsPath, scale);
-            imageService.updateImageProcessingResult(imageId, processedFilePath.toString(), "processed");
+            imageService.updateImageProcessingResult(imageId, processedFilePath.toString(), ImageStatus.PROCESSED);
         } catch (Exception e) {
             updateImageStatusToError(imageId);
             return;
         }
     }
 
-    private String getModelWeightsPath(Long imageId, String model, int scale) throws Exception {
+    private String getModelWeightsPath(Long imageId, UpscalingMethod model, int scale) throws Exception {
         String modelWeightsPath;
-        if (model.equalsIgnoreCase("bilinear") || model.equalsIgnoreCase("bicubic")) {
+        if (model == UpscalingMethod.BILINEAR || model == UpscalingMethod.BICUBIC) {
             modelWeightsPath = "none";
             System.out.println("Info: Using interpolation method '" + model + "'. No model weights needed.");
         } else {
@@ -133,7 +135,7 @@ public class AsyncProcessorService {
     private void updateImageStatusToProcessing(Long imageId) throws Exception {
         Image imageToUpdate = imageRepository.findById(imageId)
                         .orElseThrow(() -> new RuntimeException("Image not found for updating status to 'processing': " + imageId));
-        imageToUpdate.setStatus("processing");
+        imageToUpdate.setStatus(ImageStatus.PROCESSING);
         imageToUpdate.setProcessStartTime(LocalDateTime.now());
         imageRepository.save(imageToUpdate);
         System.out.println("Image " + imageId + " status updated to 'processing'.");
@@ -149,7 +151,7 @@ public class AsyncProcessorService {
 
     private void updateImageStatusToError(Long imageId) {
         try {
-            imageService.updateImageProcessingResult(imageId, null, "error");
+            imageService.updateImageProcessingResult(imageId, null, ImageStatus.ERROR);
         } catch (Exception e) {
             System.err.println("Failed to update status to error for image " + imageId + ": " + e.getMessage());
         }

@@ -1,6 +1,8 @@
 package upscale_project.UpscaleSPG.model;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -15,11 +17,13 @@ public class Image {
     private String originalFileName;
     private String originalFilePath;
     private String processedFilePath;
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private ImageStatus status;
     private LocalDateTime uploadTime;
     private LocalDateTime processStartTime;
     private LocalDateTime processEndTime;
-    private String modelUsed;
+    @Enumerated(EnumType.STRING)
+    private UpscalingMethod modelUsed;
     private int scaleFactor;
     private String originalResolution;
     private String upscaledResolution;
@@ -30,7 +34,7 @@ public class Image {
     public Image() {
     }
 
-    public Image(String originalFileName, String originalFilePath, String status, String modelUsed, int scaleFactor, String originalResolution, Long originalFileSize) {
+    public Image(String originalFileName, String originalFilePath, ImageStatus status, UpscalingMethod modelUsed, int scaleFactor, String originalResolution, Long originalFileSize) {
         this.originalFileName = originalFileName;
         this.originalFilePath = originalFilePath;
         this.status = status;
@@ -73,11 +77,11 @@ public class Image {
         this.processedFilePath = processedFilePath;
     }
 
-    public String getStatus() {
+    public ImageStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(ImageStatus status) {
         this.status = status;
     }
 
@@ -105,11 +109,11 @@ public class Image {
         this.processEndTime = processEndTime;
     }
 
-    public String getModelUsed() {
+    public UpscalingMethod getModelUsed() {
         return modelUsed;
     }
 
-    public void setModelUsed(String modelUsed) {
+    public void setModelUsed(UpscalingMethod modelUsed) {
         this.modelUsed = modelUsed;
     }
 

@@ -1,17 +1,22 @@
 package upscale_project.UpscaleSPG.model;
 
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+
 public class ImageMetadataResponse {
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private ImageStatus status;
     private String originalResolution;
     private String upscaledResolution;
     private long originalFileSize;
     private long upscaledFileSize;
-    private String model;
+    @Enumerated(EnumType.STRING)
+    private UpscalingMethod model;
     private int scale;
     private String originalFileName;
 
-    public ImageMetadataResponse(String status, String originalResolution, String upscaledResolution,
-                                 long originalFileSize, long upscaledFileSize, String model, int scale, String originalFileName) {
+    public ImageMetadataResponse(ImageStatus status, String originalResolution, String upscaledResolution,
+                                 long originalFileSize, long upscaledFileSize, UpscalingMethod model, int scale, String originalFileName) {
         this.status = status;
         this.originalResolution = originalResolution;
         this.upscaledResolution = upscaledResolution;
@@ -22,7 +27,7 @@ public class ImageMetadataResponse {
         this.originalFileName = originalFileName;
     }
 
-    public String getStatus() {
+    public ImageStatus getStatus() {
         return status;
     }
 
@@ -42,7 +47,7 @@ public class ImageMetadataResponse {
         return upscaledFileSize;
     }
 
-    public String getModel() {
+    public UpscalingMethod getModel() {
         return model;
     }
 
