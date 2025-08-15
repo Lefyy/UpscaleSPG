@@ -199,9 +199,9 @@ public class ImageService {
         String downloadFileName = originalFilename;
         if (downloadFileName != null && downloadFileName.contains(".")) {
             int dotIndex = downloadFileName.lastIndexOf(".");
-            downloadFileName = downloadFileName.substring(0, dotIndex) + "_" + model + "_" + scale + "x" + downloadFileName.substring(dotIndex);
+            downloadFileName = downloadFileName.substring(0, dotIndex) + "_" + model + "_" + scale + downloadFileName.substring(dotIndex);
         } else {
-            downloadFileName = (downloadFileName != null ? downloadFileName : "processed_image") + "_" + model + "_" + scale + "x";
+            downloadFileName = (downloadFileName != null ? downloadFileName : "processed_image") + "_" + model + "_" + scale;
         }
 
         return downloadFileName;

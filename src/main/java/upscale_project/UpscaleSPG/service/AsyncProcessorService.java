@@ -51,7 +51,7 @@ public class AsyncProcessorService {
     }
 
     @Async
-    public void startUpscalingProcess(Long imageId, String originalFilePathStr, String originalFileName, UpscalingMethod model, int scale) {
+    public void startUpscalingProcess(Long imageId, String originalFilePathStr, UpscalingMethod model, int scale) {
         String modelWeightsPath;
         Path originalFilePath = Paths.get(originalFilePathStr);
         Path processedFilePath;
@@ -61,7 +61,7 @@ public class AsyncProcessorService {
             doUpscaleProcess(imageId, originalFilePath, processedFilePath, modelWeightsPath, model, scale);
             imageService.updateImageProcessingResult(imageId, processedFilePath.toString(), ImageStatus.PROCESSED);
         } catch (Exception e) {
-            logger.error("Failed to process upscaling for image ID {}: {}", imageId, e);
+            logger.error("Failed to process upscaling for image ID {}: {}", imageId, e.getMessage());
             updateImageStatusToError(imageId);
         }
     }
@@ -74,11 +74,6 @@ public class AsyncProcessorService {
         } else {
             String modelWeightsPropertyKey = "app.weights.path." + model.toString().toLowerCase() + ".scale" + scale;
             modelWeightsPath = env.getProperty(modelWeightsPropertyKey);
-
-            if (modelWeightsPath == null) {
-                logger.error("Model weights path not found for model: {} and scale: {} (key: {}) for image ID {}", model, scale, modelWeightsPropertyKey, imageId);
-                throw new ImageProcessingException("Model weights not configured for the selected model and scale.");
-            }
         }
         return modelWeightsPath;
     }
@@ -93,10 +88,11 @@ public class AsyncProcessorService {
                 throw new ImageProcessingException("Failed to create directory for processed images.", e);
             }
         }
-        String processedFileName = Paths.get(originalFilePath).getFileName().toString() + "_" + model + "_" + Integer.toString(scale) ;
-        Path processedFilePath = processedDir.resolve(processedFileName);
+        String filename = Paths.get(originalFilePath).getFileName().toString();
+        int dotIndex = filename.lastIndexOf('.');
+        String processedFileName = filename.substring(0, dotIndex) + "_" + model + "_" + scale + "x" + filename.substring(dotIndex);
 
-        return processedFilePath;
+        return processedDir.resolve(processedFileName);
     }
 
     private void doUpscaleProcess(Long imageId, Path originalFilePath, Path processedFilePath, 

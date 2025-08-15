@@ -83,22 +83,20 @@ async function handleFormSubmit(event) {
 
 async function checkImageStatusAndDisplay(imageId, initialInfo) {
     try {
-        // ИЗМЕНЕНИЕ: теперь getImageStatus возвращает объект
         const responseData = await window.api.getImageStatus(imageId);
-        const status = responseData.status; // Получаем статус из объекта
+        const status = responseData.status;
 
         console.log(`Статус изображения ${imageId}: ${status}`);
 
         const baseMessage = `Текущий статус: ${status.toUpperCase()}`;
 
-        if (status === 'processed') {
+        if (status === 'PROCESSED') {
             clearInterval(pollingInterval);
             currentDots = 0;
             window.ui.updateStatusMessage(`${baseMessage}. Обработка завершена!`, 'green', false);
 
             const processedImageUrl = window.api.getProcessedImageUrl(imageId);
 
-            // ИЗМЕНЕНИЕ: используем данные, полученные от сервера
             const finalInfo = {
                 originalResolution: responseData.originalResolution,
                 upscaledResolution: responseData.upscaledResolution,
@@ -109,15 +107,15 @@ async function checkImageStatusAndDisplay(imageId, initialInfo) {
                 originalFileName: responseData.originalFileName
             };
 
-            window.ui.displayProcessedImageResult(processedImageUrl, finalInfo); // Передаем актуальные данные
+            window.ui.displayProcessedImageResult(processedImageUrl, finalInfo);
             window.ui.toggleFormState(true);
             window.ui.DOMElements.fileNameSpan.textContent = 'Выберите файл...';
-        } else if (status === 'error') {
+        } else if (status === 'ERROR') {
             clearInterval(pollingInterval);
             currentDots = 0;
             window.ui.showErrorMessage(`${baseMessage}. Ошибка обработки! Пожалуйста, проверьте логи сервера.`);
             window.ui.toggleFormState(true);
-        } else if (status === 'uploaded' || status === 'processing') {
+        } else if (status === 'UPLOADED' || status === 'PROCESSING') {
             currentDots = (currentDots % 3) + 1;
             const dotsString = '.'.repeat(currentDots);
             window.ui.updateStatusMessage(`${baseMessage}${dotsString}`, 'blue', true);
