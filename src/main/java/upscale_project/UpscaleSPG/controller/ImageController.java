@@ -1,6 +1,5 @@
 package upscale_project.UpscaleSPG.controller;
 
-import org.antlr.v4.runtime.misc.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,8 +17,6 @@ import upscale_project.UpscaleSPG.model.ImageMetadataResponse;
 import upscale_project.UpscaleSPG.model.UpscalingMethod;
 import upscale_project.UpscaleSPG.model.UploadResponse;
 import upscale_project.UpscaleSPG.service.ImageService;
-
-import java.io.FileNotFoundException;
 
 @RestController
 @RequestMapping("/api/v1/images")

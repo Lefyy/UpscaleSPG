@@ -72,7 +72,7 @@ public class AsyncProcessorService {
             modelWeightsPath = "none";
             logger.info("Using interpolation method '{}' for image ID {}. No model weights needed.", model, imageId);
         } else {
-            String modelWeightsPropertyKey = "app.weights.path." + model.toString().toLowerCase() + ".scale" + scale;
+            String modelWeightsPropertyKey = "app.weights.path." + model + ".scale" + scale;
             modelWeightsPath = env.getProperty(modelWeightsPropertyKey);
 
             if (modelWeightsPath == null) {
