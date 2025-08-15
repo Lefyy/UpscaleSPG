@@ -31,7 +31,8 @@ public class AsyncProcessorService {
     @Value("${app.scripts.path}")
     private String scriptsPath;
 
-    private String pythonExecutablePath = Paths.get(".venv", "Scripts", "python.exe").toString();
+    @Value("${app.python.executable.path}")
+    private String pythonExecutablePath;
 
     @Autowired
     public AsyncProcessorService(ImageRepository imageRepository, Environment env, @Lazy ImageService imageService) {
