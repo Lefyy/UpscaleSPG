@@ -61,23 +61,18 @@ def _process_image_espcn(model, input_path, output_path, device):
     Обрабатывает изображение с использованием модели ESPCN.
     """
     lr_image = cv2.imread(input_path).astype(np.float32) / 255.0
-
     ycrcb_image = cv2.cvtColor(lr_image, cv2.COLOR_BGR2YCrCb)
     y_channel, cr_channel, cb_channel = cv2.split(ycrcb_image)
 
     input_tensor = torch.from_numpy(y_channel).to(device).view(1, 1, y_channel.shape[0], y_channel.shape[1])
-
     with torch.no_grad():
         sr_y_tensor = model(input_tensor)
 
     sr_y = sr_y_tensor.squeeze().cpu().numpy()
     sr_y = np.clip(sr_y, 0.0, 1.0)
-
     h_upscaled, w_upscaled = sr_y.shape
-
     sr_cr = cv2.resize(cr_channel, (w_upscaled, h_upscaled), interpolation=cv2.INTER_CUBIC)
     sr_cb = cv2.resize(cb_channel, (w_upscaled, h_upscaled), interpolation=cv2.INTER_CUBIC)
-
     sr_ycrcb = cv2.merge([sr_y, sr_cr, sr_cb])
     final_output_bgr = cv2.cvtColor(sr_ycrcb, cv2.COLOR_YCrCb2BGR)
 
@@ -88,17 +83,14 @@ def _process_image_edsr(model, input_path, output_path, device):
     Обрабатывает изображение с использованием модели EDSR.
     """
     lr_image = cv2.imread(input_path).astype(np.float32)
-
     rgb_image = cv2.cvtColor(lr_image, cv2.COLOR_BGR2RGB)
 
     input_tensor = torch.from_numpy(rgb_image.transpose(2, 0, 1)).unsqueeze(0).to(device)
-
     with torch.no_grad():
         output_tensor = model(input_tensor)
 
     final_output_rgb = output_tensor.squeeze(0).permute(1, 2, 0).cpu().numpy()
     final_output_rgb = np.clip(final_output_rgb, 0.0, 255.0)
-
     final_output_bgr = cv2.cvtColor(final_output_rgb, cv2.COLOR_RGB2BGR)
 
     cv2.imwrite(output_path, final_output_bgr)
@@ -109,16 +101,13 @@ def _process_image_srgan(model, input_path, output_path, device):
     Обрабатывает изображение с использованием модели SRGAN.
     """
     lr_image = cv2.imread(input_path).astype(np.float32) / 255.0
-
     rgb_image = cv2.cvtColor(lr_image, cv2.COLOR_BGR2RGB)
 
     input_tensor = torch.from_numpy(rgb_image.transpose(2, 0, 1)).unsqueeze(0).to(device)
-
     with torch.no_grad():
         output_tensor = model(input_tensor)
 
     final_output_rgb = output_tensor.squeeze(0).permute(1, 2, 0).cpu().numpy()
-
     final_output_bgr = cv2.cvtColor(final_output_rgb, cv2.COLOR_RGB2BGR)
 
     cv2.imwrite(output_path, final_output_bgr * 255.0)
@@ -151,7 +140,7 @@ def upscale_image(input_path, output_path, model_path, model_name, scale):
             raise ValueError(f"Неизвестное имя модели/метода: {model_name}. "
                              f"Поддерживаются: espcn, edsr, srgan, bilinear, bicubic.")
 
-        return 0 # Успешное завершение
+        return 0
 
     except FileNotFoundError:
         print(f"Ошибка: Файл не найден по пути {input_path} или {model_path}", file=sys.stderr)
