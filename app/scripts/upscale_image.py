@@ -5,9 +5,10 @@ import cv2
 import numpy as np
 
 
-from ESPCN import ESPCN
-from EDSR import EDSR
-from SRGAN import *
+from app.scripts.ESPCN import ESPCN
+from app.scripts.EDSR import EDSR
+from app.scripts.SRGAN import *
+
 
 def _load_model(model_name, scale, model_path, device):
     """

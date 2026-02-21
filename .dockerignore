@@ -1,0 +1,9 @@
+.git
+.gitignore
+README.md
+target
+**/__pycache__
+**/*.pyc
+app/images
+app/scripts/weights
+.venv
