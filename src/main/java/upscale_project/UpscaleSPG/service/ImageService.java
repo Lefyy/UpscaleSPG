@@ -1,5 +1,14 @@
 package upscale_project.UpscaleSPG.service;
 
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.UUID;
+
+import javax.imageio.ImageIO;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,15 +31,6 @@ import upscale_project.UpscaleSPG.model.ImageMetadataResponse;
 import upscale_project.UpscaleSPG.model.ImageStatus;
 import upscale_project.UpscaleSPG.model.UpscalingMethod;
 import upscale_project.UpscaleSPG.repository.ImageRepository;
-
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Service
 public class ImageService {
@@ -110,26 +110,6 @@ public class ImageService {
             fileExtension = filename.substring(filename.lastIndexOf("."));
         }
         return fileExtension;
-    }
-
-    public void updateImageProcessingResult(Long imageId, String processedFilePath, ImageStatus status) {
-        Image image = getImageById(imageId);
-        image.setProcessedFilePath(processedFilePath);
-        image.setStatus(status);
-        image.setProcessEndTime(LocalDateTime.now());
-
-        if (processedFilePath != null) {
-            try {
-                Path filePath = Paths.get(processedFilePath);
-                image.setUpscaledResolution(getResolution(filePath));
-                image.setUpscaledFileSize(Files.size(filePath));
-            } catch (IOException e) {
-                logger.error("Could not get metadata for processed file {}: {}", processedFilePath, e.getMessage());
-                throw new ImageProcessingException("Could not get metadata for processed file.", e);
-            }
-        }
-
-        imageRepository.save(image);
     }
 
     private String getResolution(Path filePath) {

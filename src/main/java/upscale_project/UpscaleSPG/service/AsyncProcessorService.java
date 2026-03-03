@@ -1,34 +1,27 @@
-// src/main/java/upscale_project/UpscaleSPG/service/AsyncProcessorService.java
 package upscale_project.UpscaleSPG.service;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.LocalDateTime;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import upscale_project.UpscaleSPG.exception.ImageNotFoundException;
 import upscale_project.UpscaleSPG.exception.ImageProcessingException;
-import upscale_project.UpscaleSPG.model.Image;
 import upscale_project.UpscaleSPG.model.ImageStatus;
 import upscale_project.UpscaleSPG.model.UpscalingMethod;
-import upscale_project.UpscaleSPG.repository.ImageRepository;
 
 @Service
 public class AsyncProcessorService {
 
     private static final Logger logger = LoggerFactory.getLogger(AsyncProcessorService.class);
 
-    private final ImageRepository imageRepository;
-    private final ImageService imageService;
+    private final ImageLifecycleService imageLifecycleService;
     private final UpscaleApiClient upscaleApiClient;
 
     @Value("${app.upload.path}")
@@ -36,12 +29,10 @@ public class AsyncProcessorService {
 
     @Autowired
     public AsyncProcessorService(
-        ImageRepository imageRepository,
-        @Lazy ImageService imageService,
+        ImageLifecycleService imageLifecycleService,
         UpscaleApiClient upscaleApiClient
     ) {
-        this.imageRepository = imageRepository;
-        this.imageService = imageService;
+        this.imageLifecycleService = imageLifecycleService;
         this.upscaleApiClient = upscaleApiClient;
     }
 
@@ -52,10 +43,10 @@ public class AsyncProcessorService {
         try {
             processedFilePath = getProcessedFilePath(imageId, originalFilePathStr, model, scale);
             doUpscaleProcess(imageId, originalFilePath, processedFilePath, model, scale);
-            imageService.updateImageProcessingResult(imageId, processedFilePath.toString(), ImageStatus.PROCESSED);
+            imageLifecycleService.updateImageProcessingResult(imageId, processedFilePath.toString(), ImageStatus.PROCESSED);
         } catch (Exception e) {
             logger.error("Failed to process upscaling for image ID {}: {}", imageId, e.getMessage());
-            updateImageStatusToError(imageId);
+            imageLifecycleService.updateImageStatus(imageId, ImageStatus.ERROR);
         }
     }
 
@@ -84,8 +75,8 @@ public class AsyncProcessorService {
         UpscalingMethod model,
         int scale
     ) {
-        
-        updateImageStatusToProcessing(imageId);
+
+        imageLifecycleService.updateImageStatus(imageId, ImageStatus.PROCESSING);
 
         byte[] processedBytes = upscaleApiClient.upscale(
             originalFilePath,
@@ -100,23 +91,5 @@ public class AsyncProcessorService {
         }
 
         logger.info("Image {} processing successful.", imageId);
-    }
-
-    private void updateImageStatusToProcessing(Long imageId) {
-        Image imageToUpdate = imageRepository
-                              .findById(imageId)
-                              .orElseThrow(() -> new ImageNotFoundException("Image not found for updating status to 'processing': " + imageId));
-        imageToUpdate.setStatus(ImageStatus.PROCESSING);
-        imageToUpdate.setProcessStartTime(LocalDateTime.now());
-        imageRepository.save(imageToUpdate);
-        logger.info("Image {} status updated to 'processing'.", imageId);
-    }
-
-    private void updateImageStatusToError(Long imageId) {
-        try {
-            imageService.updateImageProcessingResult(imageId, null, ImageStatus.ERROR);
-        } catch (Exception e) {
-            logger.error("Failed to update status to error for image {}: {}", imageId, e.getMessage());
-        }
     }
 }
